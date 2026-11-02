@@ -7,6 +7,7 @@ import { useForm } from "@/lib/useForm";
 import { friendlyError, fmtTime, haptic, CATEGORIES, SUBCATEGORIES, workoutTag } from "@/lib/utils";
 import { Field, Spinner } from "./Field";
 import { AlertBox } from "./AuthScreens";
+import { Booking } from "./Booking";
 import { useToast } from "./Toast";
 
 type Status = "loading" | "ready" | "error";
@@ -22,6 +23,7 @@ export function Tracker({ user }: { user: User }) {
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [removing, setRemoving] = useState<string | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [tab, setTab] = useState<"workouts" | "booking">("workouts");
 
   const load = useCallback(async () => {
     setStatus("loading");
@@ -150,6 +152,26 @@ export function Tracker({ user }: { user: User }) {
       </header>
 
       <div className="wrap wide stack">
+        <div className="tabs" role="tablist">
+          {([["workouts", "تمارين اليوم"], ["booking", "حجز المواعيد"]] as const).map(([id, label]) => (
+            <button
+              key={id}
+              role="tab"
+              aria-selected={tab === id}
+              className="tab"
+              onClick={() => {
+                haptic();
+                setTab(id);
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        {tab === "booking" ? (
+          <Booking />
+        ) : (
+        <>
         <div className="stats">
           {stats.map(([v, l]) => (
             <div className="stat" key={l}>
@@ -289,6 +311,8 @@ export function Tracker({ user }: { user: User }) {
             </ul>
           </div>
         </div>
+        </>
+        )}
       </div>
 
     </>

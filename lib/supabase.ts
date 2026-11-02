@@ -29,6 +29,34 @@ export type CatalogItem = {
   uses_weight: boolean;
 };
 
+export type SlotRow = {
+  slot_id: string;
+  day: string; // YYYY-MM-DD
+  weekday: number;
+  start_time: string; // HH:MM:SS
+  label: string;
+  capacity: number;
+  booked: number;
+  is_full: boolean;
+  mine: boolean;
+};
+
+export const BookingsAPI = {
+  async upcoming(from: string, days = 7): Promise<SlotRow[]> {
+    const { data, error } = await sb.rpc("upcoming_slots", { p_from: from, p_days: days });
+    if (error) throw error;
+    return data as SlotRow[];
+  },
+  async book(slotId: string, day: string) {
+    const { error } = await sb.from("bookings").insert({ slot_id: slotId, booking_date: day });
+    if (error) throw error;
+  },
+  async cancel(slotId: string, day: string) {
+    const { error } = await sb.from("bookings").delete().eq("slot_id", slotId).eq("booking_date", day);
+    if (error) throw error;
+  },
+};
+
 export const CatalogAPI = {
   async list(): Promise<CatalogItem[]> {
     const { data, error } = await sb

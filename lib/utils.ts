@@ -61,6 +61,7 @@ export function friendlyError(err: unknown): string {
   if (/Password should be at least/i.test(m)) return "كلمة المرور قصيرة جداً";
   if (/Anonymous sign-ins are disabled/i.test(m)) return "الدخول كزائر غير مفعّل حالياً";
   if (/rate limit|too many/i.test(m)) return "محاولات كثيرة، انتظر قليلاً ثم أعد المحاولة";
+  if (/duplicate key/i.test(m)) return "حجزت هذا الموعد مسبقاً";
   if (/Failed to fetch|NetworkError|network/i.test(m)) return "تعذّر الاتصال بالخادم، تحقق من الإنترنت";
   return m || "حدث خطأ غير متوقع";
 }
