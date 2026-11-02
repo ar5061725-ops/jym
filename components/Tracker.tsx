@@ -13,7 +13,7 @@ type Status = "loading" | "ready" | "error";
 
 export function Tracker({ user }: { user: User }) {
   const toast = useToast();
-  const guest = !!user.is_anonymous;
+  const name: string = user.user_metadata?.username || "مستخدم";
   const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [status, setStatus] = useState<Status>("loading");
   const [error, setError] = useState("");
@@ -124,10 +124,10 @@ export function Tracker({ user }: { user: User }) {
     <>
       <header className="topbar">
         <div className="inner">
-          <div className="avatar">{guest ? "ز" : (user.email || "?")[0].toUpperCase()}</div>
+          <div className="avatar">{name[0].toUpperCase()}</div>
           <div className="who">
             <small>مسجّل الدخول</small>
-            <span>{guest ? "زائر" : user.email}</span>
+            <span>{name}</span>
           </div>
           <button
             className="btn btn-ghost"
@@ -135,9 +135,7 @@ export function Tracker({ user }: { user: User }) {
             disabled={loggingOut}
             onClick={() => {
               haptic();
-              // A guest can't sign back in to the same account, so confirm before losing the data
-              if (guest) toast("لن تتمكن من استرجاع تمارينك بعد الخروج", { type: "error", action: "خروج", onAction: logout, duration: 5000 });
-              else logout();
+              logout();
             }}
           >
             {loggingOut ? <Spinner /> : "خروج"}
@@ -145,12 +143,7 @@ export function Tracker({ user }: { user: User }) {
         </div>
       </header>
 
-      <div className="wrap stack">
-        {guest && (
-          <div className="alert info" role="note">
-            أنت تستخدم التطبيق كزائر. تمارينك محفوظة على هذا الجهاز ما دمت مسجّلاً، ولن تتمكن من استرجاعها بعد الخروج.
-          </div>
-        )}
+      <div className="wrap wide stack">
         <div className="stats">
           {stats.map(([v, l]) => (
             <div className="stat" key={l}>

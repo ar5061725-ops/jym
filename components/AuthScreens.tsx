@@ -1,11 +1,9 @@
 "use client";
 
-import { useState } from "react";
 import { sb } from "@/lib/supabase";
 import { useForm } from "@/lib/useForm";
-import { friendlyError, haptic, isEmail } from "@/lib/utils";
+import { usernameToEmail } from "@/lib/utils";
 import { Field, Spinner } from "./Field";
-import { useToast } from "./Toast";
 
 export function AlertBox({ alert }: { alert: { msg: string; kind: "error" | "ok" } | null }) {
   return alert ? (
@@ -15,147 +13,74 @@ export function AlertBox({ alert }: { alert: { msg: string; kind: "error" | "ok"
   ) : null;
 }
 
-function Submit({ loading, text, loadingText }: { loading: boolean; text: string; loadingText: string }) {
+export function Logo({ size = 72 }: { size?: number }) {
   return (
-    <button className="btn btn-primary" type="submit" disabled={loading}>
-      {loading ? (
-        <>
-          <Spinner />
-          {loadingText}
-        </>
-      ) : (
-        text
-      )}
-    </button>
+    <svg width={size} height={size} viewBox="0 0 96 96" role="img" aria-label="متتبع النادي">
+      <defs>
+        <linearGradient id="lg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#3B82F6" />
+          <stop offset="1" stopColor="#1D4ED8" />
+        </linearGradient>
+      </defs>
+      <rect width="96" height="96" rx="26" fill="url(#lg)" />
+      <g fill="#fff">
+        <rect x="14" y="36" width="10" height="24" rx="4" />
+        <rect x="25" y="29" width="11" height="38" rx="4" />
+        <rect x="72" y="36" width="10" height="24" rx="4" />
+        <rect x="60" y="29" width="11" height="38" rx="4" />
+        <rect x="36" y="44" width="24" height="8" rx="3" />
+      </g>
+      <path d="M20 79h56" stroke="#fff" strokeOpacity=".55" strokeWidth="4" strokeLinecap="round" />
+    </svg>
   );
 }
 
-const emailProblem = { field: "email", message: "أدخل بريداً إلكترونياً صحيحاً" };
-const redirectTo = () => (location.protocol.startsWith("http") ? location.href : undefined);
-
-export function LoginScreen({ push }: { push: (name: string) => void }) {
-  const toast = useToast();
-  const [guestLoading, setGuestLoading] = useState(false);
-  const f = useForm({ email: "", password: "" }, {
-    validate: v => (!isEmail(v.email) ? emailProblem : !v.password ? { field: "password", message: "أدخل كلمة المرور" } : null),
+/** One form: enters directly; the account is created automatically the first time a name is used */
+export function LoginScreen() {
+  const f = useForm({ username: "", password: "" }, {
+    validate: v =>
+      v.username.length < 2 ? { field: "username", message: "أدخل اسماً من حرفين على الأقل" }
+      : v.password.length < 6 ? { field: "password", message: "الرقم السري يجب أن يكون 6 خانات على الأقل" }
+      : null,
     submit: async v => {
-      const { error } = await sb.auth.signInWithPassword({ email: v.email, password: v.password });
+      const email = await usernameToEmail(v.username);
+      const signIn = await sb.auth.signInWithPassword({ email, password: v.password });
+      if (!signIn.error) return;
+      if (!/Invalid login credentials/i.test(signIn.error.message)) throw signIn.error;
+
+      // Unknown name → create it; a known name with a wrong password fails here
+      const { error } = await sb.auth.signUp({ email, password: v.password, options: { data: { username: v.username } } });
+      if (error && /already registered|already been registered/i.test(error.message)) {
+        throw new Error("الرقم السري غير صحيح");
+      }
       if (error) throw error;
     },
   });
 
-  async function guest() {
-    setGuestLoading(true);
-    try {
-      const { error } = await sb.auth.signInAnonymously();
-      if (error) throw error;
-    } catch (err) {
-      toast(friendlyError(err), { type: "error", duration: 4000 });
-      haptic([20, 40, 20]);
-    } finally {
-      setGuestLoading(false);
-    }
-  }
-
   return (
     <div className="wrap">
       <div className="brand">
-        <div className="logo" aria-hidden="true">
-          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-            <path d="M6 7v10M18 7v10M3 10v4M21 10v4M6 12h12" />
-          </svg>
-        </div>
+        <Logo />
         <h1>متتبع النادي</h1>
         <p className="sub">سجّل تمارينك وتابع تقدّمك يومياً</p>
       </div>
       <form className="card stack" ref={f.formRef} onSubmit={f.onSubmit} noValidate>
         <AlertBox alert={f.alert} />
-        <Field name="email" label="البريد الإلكتروني" type="email" autoComplete="email" value={f.values.email} onChange={f.set("email")} invalid={f.invalid === "email"} />
-        <Field name="password" label="كلمة المرور" type="password" autoComplete="current-password" value={f.values.password} onChange={f.set("password")} invalid={f.invalid === "password"} />
-        <Submit loading={f.loading} text="تسجيل الدخول" loadingText="جارٍ الدخول…" />
-        <div className="row-between">
-          <button className="btn-link" type="button" onClick={() => push("forgot")}>نسيت كلمة المرور؟</button>
-          <button className="btn-link" type="button" onClick={() => push("signup")}>حساب جديد</button>
-        </div>
-      </form>
-      <div className="divider"><span>أو</span></div>
-      <button className="btn btn-ghost" type="button" style={{ width: "100%" }} onClick={guest} disabled={guestLoading}>
-        {guestLoading ? (
-          <>
-            <Spinner />
-            جارٍ الدخول…
-          </>
-        ) : (
-          <>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-              <circle cx="12" cy="8" r="4" />
-              <path d="M4 21a8 8 0 0 1 16 0" />
-            </svg>
-            الدخول كزائر
-          </>
-        )}
-      </button>
-      <p className="sub" style={{ textAlign: "center", fontSize: 13, marginTop: 10 }}>
-        جرّب التطبيق بدون بريد. لن تتمكن من استرجاع تمارينك بعد الخروج.
-      </p>
-    </div>
-  );
-}
-
-export function SignupScreen({ back }: { back: () => void }) {
-  const f = useForm({ email: "", password: "", confirm: "" }, {
-    validate: v =>
-      !isEmail(v.email) ? emailProblem
-      : v.password.length < 6 ? { field: "password", message: "كلمة المرور يجب أن تكون 6 أحرف على الأقل" }
-      : v.password !== v.confirm ? { field: "confirm", message: "كلمتا المرور غير متطابقتين" }
-      : null,
-    submit: async (v, { alert, reset }) => {
-      const { data, error } = await sb.auth.signUp({ email: v.email, password: v.password, options: { emailRedirectTo: redirectTo() } });
-      if (error) throw error;
-      reset();
-      if (!data.session) alert("تم إنشاء الحساب! افتح بريدك لتأكيده ثم سجّل الدخول.", "ok");
-    },
-  });
-
-  return (
-    <div className="wrap">
-      <div className="back-row">
-        <button className="icon-btn" onClick={back} aria-label="رجوع">›</button>
-        <h2>إنشاء حساب جديد</h2>
-      </div>
-      <p className="sub" style={{ marginBottom: 16 }}>اسحب من حافة الشاشة للرجوع</p>
-      <form className="card stack" ref={f.formRef} onSubmit={f.onSubmit} noValidate>
-        <AlertBox alert={f.alert} />
-        <Field name="email" label="البريد الإلكتروني" type="email" autoComplete="email" value={f.values.email} onChange={f.set("email")} invalid={f.invalid === "email"} />
-        <Field name="password" label="كلمة المرور (6 أحرف على الأقل)" type="password" autoComplete="new-password" value={f.values.password} onChange={f.set("password")} invalid={f.invalid === "password"} />
-        <Field name="confirm" label="تأكيد كلمة المرور" type="password" autoComplete="new-password" value={f.values.confirm} onChange={f.set("confirm")} invalid={f.invalid === "confirm"} />
-        <Submit loading={f.loading} text="إنشاء الحساب" loadingText="جارٍ الإنشاء…" />
-      </form>
-    </div>
-  );
-}
-
-export function ForgotScreen({ back }: { back: () => void }) {
-  const f = useForm({ email: "" }, {
-    validate: v => (!isEmail(v.email) ? emailProblem : null),
-    submit: async (v, { alert }) => {
-      const { error } = await sb.auth.resetPasswordForEmail(v.email, { redirectTo: redirectTo() });
-      if (error) throw error;
-      alert("تم الإرسال. تحقق من بريدك الإلكتروني.", "ok");
-    },
-  });
-
-  return (
-    <div className="wrap">
-      <div className="back-row">
-        <button className="icon-btn" onClick={back} aria-label="رجوع">›</button>
-        <h2>استعادة كلمة المرور</h2>
-      </div>
-      <p className="sub" style={{ marginBottom: 16 }}>سنرسل لك رابطاً لإعادة تعيين كلمة المرور</p>
-      <form className="card stack" ref={f.formRef} onSubmit={f.onSubmit} noValidate>
-        <AlertBox alert={f.alert} />
-        <Field name="email" label="البريد الإلكتروني" type="email" autoComplete="email" value={f.values.email} onChange={f.set("email")} invalid={f.invalid === "email"} />
-        <Submit loading={f.loading} text="إرسال الرابط" loadingText="جارٍ الإرسال…" />
+        <Field name="username" label="الاسم" autoComplete="username" value={f.values.username} onChange={f.set("username")} invalid={f.invalid === "username"} />
+        <Field name="password" label="الرقم السري" type="password" autoComplete="current-password" value={f.values.password} onChange={f.set("password")} invalid={f.invalid === "password"} />
+        <button className="btn btn-primary" type="submit" disabled={f.loading}>
+          {f.loading ? (
+            <>
+              <Spinner />
+              جارٍ الدخول…
+            </>
+          ) : (
+            "دخول"
+          )}
+        </button>
+        <p className="sub" style={{ fontSize: 13, textAlign: "center" }}>
+          أول مرة؟ اكتب اسماً ورقماً سرياً جديدين وسيُنشأ حسابك تلقائياً.
+        </p>
       </form>
     </div>
   );

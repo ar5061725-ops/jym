@@ -17,7 +17,13 @@ export const haptic = (ms: number | number[] = 10) => {
 export const fmtTime = (iso: string) =>
   new Date(iso).toLocaleTimeString("ar", { hour: "numeric", minute: "2-digit" });
 
-export const isEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+/** Supabase auth needs an email, so a name maps to a stable internal address (never shown or mailed) */
+export async function usernameToEmail(username: string) {
+  const bytes = new TextEncoder().encode(username.trim().toLowerCase());
+  const hash = await crypto.subtle.digest("SHA-256", bytes);
+  const hex = [...new Uint8Array(hash)].map(b => b.toString(16).padStart(2, "0")).join("").slice(0, 32);
+  return `u${hex}@gym-app.dev`;
+}
 
 /** Maps Supabase/network errors to friendly Arabic messages */
 export function friendlyError(err: unknown): string {
