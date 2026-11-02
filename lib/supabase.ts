@@ -12,24 +12,45 @@ export const TABLE = "workouts";
 export type Workout = {
   id: string;
   exercise: string;
-  muscle: string;
+  muscle: string | null;
+  category: string | null;
+  subcategory: string | null;
   weight_kg: number;
   sets: number;
   reps: number;
   created_at: string;
 };
 
+export type CatalogItem = {
+  id: string;
+  category: string;
+  subcategory: string;
+  name: string;
+  uses_weight: boolean;
+};
+
+export const CatalogAPI = {
+  async list(): Promise<CatalogItem[]> {
+    const { data, error } = await sb
+      .from("exercise_catalog")
+      .select("id, category, subcategory, name, uses_weight")
+      .order("sort");
+    if (error) throw error;
+    return data as CatalogItem[];
+  },
+};
+
 export const WorkoutsAPI = {
   async listToday(): Promise<Workout[]> {
     const { data, error } = await sb
       .from(TABLE)
-      .select("id, exercise, muscle, weight_kg, sets, reps, created_at")
+      .select("id, exercise, muscle, category, subcategory, weight_kg, sets, reps, created_at")
       .gte("created_at", startOfToday())
       .order("created_at", { ascending: false });
     if (error) throw error;
     return data as Workout[];
   },
-  async create(w: Omit<Workout, "id" | "created_at">): Promise<Workout> {
+  async create(w: Omit<Workout, "id" | "created_at" | "muscle">): Promise<Workout> {
     const { data, error } = await sb.from(TABLE).insert(w).select().single();
     if (error) throw error;
     return data as Workout;

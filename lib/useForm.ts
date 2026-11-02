@@ -19,8 +19,7 @@ export function useForm<K extends string>(initial: Record<K, string>, { validate
   const [loading, setLoading] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
-  const set = (k: K) => (v: string) => {
-    setValues(s => ({ ...s, [k]: v }));
+  const set = (k: K) => (v: string) => {    setValues(s => ({ ...s, [k]: v }));
     if (invalid === k) setInvalid(null);
   };
   const reset = () => setValues(initial);

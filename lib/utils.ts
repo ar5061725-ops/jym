@@ -8,6 +8,32 @@ export const MUSCLES = [
 
 export const muscleLabel = (id: string) => MUSCLES.find(m => m.id === id)?.label ?? id;
 
+export const CATEGORIES = [
+  { id: "iron", label: "حديد" },
+  { id: "calisthenics", label: "كاليستنكس" },
+  { id: "crossfit", label: "كروس فت" },
+];
+
+const LEVELS = [
+  { id: "beginner", label: "مبتدئ" },
+  { id: "intermediate", label: "متوسط" },
+  { id: "advanced", label: "متقدم" },
+];
+
+export const SUBCATEGORIES: Record<string, { id: string; label: string }[]> = {
+  iron: [
+    { id: "front", label: "أماميات" },
+    { id: "back", label: "خلفيات" },
+    { id: "shoulders", label: "أكتاف" },
+  ],
+  calisthenics: LEVELS,
+  crossfit: LEVELS,
+};
+
+/** Badge text for a logged workout (older rows only have a muscle) */
+export const workoutTag = (w: { category?: string | null; subcategory?: string | null; muscle?: string | null }) =>
+  SUBCATEGORIES[w.category ?? ""]?.find(s => s.id === w.subcategory)?.label ?? (w.muscle ? muscleLabel(w.muscle) : "");
+
 export const haptic = (ms: number | number[] = 10) => {
   try {
     navigator.vibrate?.(ms);

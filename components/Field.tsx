@@ -12,6 +12,7 @@ type Props = {
   autoComplete?: string;
   placeholder?: string;
   min?: string;
+  max?: string;
   step?: string;
   inputMode?: "decimal" | "numeric";
   list?: string;

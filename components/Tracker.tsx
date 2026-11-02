@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { User } from "@supabase/supabase-js";
-import { sb, WorkoutsAPI, type Workout } from "@/lib/supabase";
+import { sb, CatalogAPI, WorkoutsAPI, type CatalogItem, type Workout } from "@/lib/supabase";
 import { useForm } from "@/lib/useForm";
-import { friendlyError, fmtTime, haptic, MUSCLES, muscleLabel } from "@/lib/utils";
+import { friendlyError, fmtTime, haptic, CATEGORIES, SUBCATEGORIES, workoutTag } from "@/lib/utils";
 import { Field, Spinner } from "./Field";
 import { AlertBox } from "./AuthScreens";
 import { useToast } from "./Toast";
@@ -17,10 +17,11 @@ export function Tracker({ user }: { user: User }) {
   const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [status, setStatus] = useState<Status>("loading");
   const [error, setError] = useState("");
-  const [muscle, setMuscle] = useState("chest");
+  const [category, setCategory] = useState("iron");
+  const [subcategory, setSubcategory] = useState("front");
+  const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [removing, setRemoving] = useState<string | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
-  const exerciseRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
     setStatus("loading");
@@ -36,34 +37,39 @@ export function Tracker({ user }: { user: User }) {
 
   useEffect(() => {
     load();
-  }, [load]);
+    CatalogAPI.list().then(setCatalog).catch(err => toast(friendlyError(err), { type: "error" }));
+  }, [load, toast]);
+
+  const options = catalog.filter(c => c.category === category && c.subcategory === subcategory);
 
   const f = useForm({ exercise: "", weight: "", sets: "", reps: "" }, {
-    validate: v =>
-      !v.exercise ? { field: "exercise", message: "أدخل اسم التمرين" }
-      : v.weight === "" || +v.weight < 0 ? { field: "weight", message: "أدخل وزناً صحيحاً (0 أو أكثر)" }
-      : !(+v.sets >= 1) ? { field: "sets", message: "عدد الجولات يجب أن يكون 1 على الأقل" }
-      : !(+v.reps >= 1) ? { field: "reps", message: "عدد التكرارات يجب أن يكون 1 على الأقل" }
-      : null,
+    validate: v => {
+      const item = options.find(o => o.name === v.exercise);
+      return !item ? { field: "exercise", message: "اختر تمريناً من القائمة" }
+        : item.uses_weight && (v.weight === "" || +v.weight < 0) ? { field: "weight", message: "أدخل وزناً صحيحاً (0 أو أكثر)" }
+        : !(+v.sets >= 1 && +v.sets <= 4) ? { field: "sets", message: "عدد الجولات من 1 إلى 4" }
+        : !(+v.reps >= 1 && +v.reps <= 20) ? { field: "reps", message: "عدد التكرارات من 1 إلى 20" }
+        : null;
+    },
     submit: async v => {
+      const uses = options.find(o => o.name === v.exercise)?.uses_weight;
       const row = await WorkoutsAPI.create({
         exercise: v.exercise,
-        muscle,
-        weight_kg: +v.weight,
+        category,
+        subcategory,
+        weight_kg: uses ? +v.weight : 0,
         sets: parseInt(v.sets, 10),
         reps: parseInt(v.reps, 10),
       });
       setWorkouts(w => [row, ...w]);
       setStatus("ready");
-      f.set("exercise")(""); // keep weight/sets/reps for the next set
-      f.focus("exercise");
       haptic(15);
       toast(`تم حفظ «${row.exercise}»`);
     },
   });
 
   async function share(w: Workout) {
-    const text = `${w.exercise} (${muscleLabel(w.muscle)}): ${Number(w.weight_kg)} كجم · ${w.sets}×${w.reps}`;
+    const text = `${w.exercise} (${workoutTag(w)}): ${Number(w.weight_kg) ? `${Number(w.weight_kg)} كجم · ` : ""}${w.sets}×${w.reps}`;
     try {
       if (navigator.share) await navigator.share({ title: "تمريني اليوم", text });
       else {
@@ -157,32 +163,68 @@ export function Tracker({ user }: { user: User }) {
           <form className="card stack" ref={f.formRef} onSubmit={f.onSubmit} noValidate>
             <h2>تمرين جديد</h2>
             <AlertBox alert={f.alert} />
-            <div ref={exerciseRef}>
-              <Field name="exercise" label="اسم التمرين" placeholder="مثل: بنش برس، سكوات" list="exercise-suggest" value={f.values.exercise} onChange={f.set("exercise")} invalid={f.invalid === "exercise"} />
-            </div>
             <div className="field">
-              <label id="muscle-label">العضلة</label>
-              <div className="chips" role="group" aria-labelledby="muscle-label">
-                {MUSCLES.map(m => (
+              <label id="cat-label">نوع التمرين</label>
+              <div className="chips" role="group" aria-labelledby="cat-label">
+                {CATEGORIES.map(c => (
                   <button
-                    key={m.id}
+                    key={c.id}
                     type="button"
                     className="chip"
-                    aria-pressed={m.id === muscle}
+                    aria-pressed={c.id === category}
                     onClick={() => {
                       haptic();
-                      setMuscle(m.id);
+                      setCategory(c.id);
+                      setSubcategory(SUBCATEGORIES[c.id][0].id);
+                      f.set("exercise")("");
                     }}
                   >
-                    {m.label}
+                    {c.label}
                   </button>
                 ))}
               </div>
             </div>
+            <div className="field">
+              <label id="sub-label">{category === "iron" ? "القسم" : "المستوى"}</label>
+              <div className="chips" role="group" aria-labelledby="sub-label">
+                {SUBCATEGORIES[category].map(s => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    className="chip"
+                    aria-pressed={s.id === subcategory}
+                    onClick={() => {
+                      haptic();
+                      setSubcategory(s.id);
+                      f.set("exercise")("");
+                    }}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="field">
+              <label htmlFor="exercise-select">التمرين</label>
+              <select
+                id="exercise-select"
+                name="exercise"
+                className={`input${f.invalid === "exercise" ? " invalid" : ""}`}
+                value={f.values.exercise}
+                onChange={e => f.set("exercise")(e.target.value)}
+              >
+                <option value="">اختر التمرين…</option>
+                {options.map(o => (
+                  <option key={o.id} value={o.name}>{o.name}</option>
+                ))}
+              </select>
+            </div>
             <div className="grid3">
-              <Field name="weight" label="الوزن (كجم)" type="number" min="0" step="0.5" inputMode="decimal" value={f.values.weight} onChange={f.set("weight")} invalid={f.invalid === "weight"} />
-              <Field name="sets" label="الجولات" type="number" min="1" step="1" inputMode="numeric" value={f.values.sets} onChange={f.set("sets")} invalid={f.invalid === "sets"} />
-              <Field name="reps" label="التكرارات" type="number" min="1" step="1" inputMode="numeric" value={f.values.reps} onChange={f.set("reps")} invalid={f.invalid === "reps"} />
+              {options.find(o => o.name === f.values.exercise)?.uses_weight && (
+                <Field name="weight" label="الوزن (كجم)" type="number" min="0" step="0.5" inputMode="decimal" value={f.values.weight} onChange={f.set("weight")} invalid={f.invalid === "weight"} />
+              )}
+              <Field name="sets" label="الجولات (حتى 4)" type="number" min="1" max="4" step="1" inputMode="numeric" value={f.values.sets} onChange={f.set("sets")} invalid={f.invalid === "sets"} />
+              <Field name="reps" label="التكرارات (حتى 20)" type="number" min="1" max="20" step="1" inputMode="numeric" value={f.values.reps} onChange={f.set("reps")} invalid={f.invalid === "reps"} />
             </div>
             <button className="btn btn-primary" type="submit" disabled={f.loading}>
               {f.loading ? (
@@ -222,11 +264,11 @@ export function Tracker({ user }: { user: User }) {
               ) : (
                 workouts.map(w => (
                   <li key={w.id} className={`log-item${removing === w.id ? " removing" : ""}`}>
-                    <div className="badge">{muscleLabel(w.muscle)}</div>
+                    <div className="badge">{workoutTag(w)}</div>
                     <div className="log-main">
                       <b>{w.exercise}</b>
                       <small>
-                        {Number(w.weight_kg)} كجم · {w.sets} × {w.reps} · {fmtTime(w.created_at)}
+                        {Number(w.weight_kg) ? `${Number(w.weight_kg)} كجم · ` : ""}{w.sets} × {w.reps} · {fmtTime(w.created_at)}
                       </small>
                     </div>
                     <div className="log-actions">
@@ -249,11 +291,6 @@ export function Tracker({ user }: { user: User }) {
         </div>
       </div>
 
-      <datalist id="exercise-suggest">
-        {["بنش برس", "سكوات", "ديدلفت", "سحب أمامي", "ضغط أكتاف", "باي سبس", "تراي سبس", "بلانك"].map(n => (
-          <option key={n} value={n} />
-        ))}
-      </datalist>
     </>
   );
 }
