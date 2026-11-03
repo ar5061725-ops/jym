@@ -121,6 +121,8 @@ h2{margin:0;font-size:18px;font-weight:700}
 .product{display:flex;flex-direction:column;gap:10px}
 .product-img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:var(--r-md);background:var(--surface-2)}
 .product.out .product-img{filter:grayscale(1);opacity:.6}
+.upload{display:flex;align-items:center;justify-content:center;gap:6px;min-height:40px;border:1px dashed var(--accent);border-radius:var(--r-md);color:var(--accent);font-weight:700;font-size:14px;cursor:pointer}
+.upload.has-image{border:0;min-height:28px;justify-content:flex-start;font-size:13px;color:var(--muted);text-decoration:underline}
 .product h3{margin:0;font-size:17px;font-weight:700}
 .price{color:var(--accent);font-size:18px}
 .product.out{background:#E5E7EB;border-color:#D1D5DB;color:#9CA3AF;box-shadow:none}

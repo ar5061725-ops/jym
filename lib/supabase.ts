@@ -79,6 +79,18 @@ export const EquipmentAPI = {
     if (error) throw error;
     return data as Equipment[];
   },
+  /** Uploads into the caller's own folder, then attaches the file to the product */
+  async setImage(userId: string, id: string, file: File) {
+    const ext = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
+    const path = `${userId}/${id}-${Date.now()}.${ext}`;
+    const up = await sb.storage.from("equipment-images").upload(path, file, { contentType: file.type });
+    if (up.error) throw up.error;
+    const { error } = await sb.rpc("set_equipment_image", { p_id: id, p_path: path });
+    if (error) {
+      await sb.storage.from("equipment-images").remove([path]);
+      throw error;
+    }
+  },
   /** Atomic purchase in the database; returns the remaining stock */
   async buy(id: string, qty = 1): Promise<number> {
     const { data, error } = await sb.rpc("buy_equipment", { p_id: id, p_qty: qty });

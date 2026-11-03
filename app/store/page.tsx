@@ -19,6 +19,8 @@ function Store() {
   const [error, setError] = useState("");
   const [category, setCategory] = useState("all");
   const [buying, setBuying] = useState<string | null>(null);
+  const [uploading, setUploading] = useState<string | null>(null);
+  const [userId, setUserId] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -33,9 +35,28 @@ function Store() {
   useEffect(() => {
     sb.auth.getSession().then(({ data }) => {
       if (!data.session) router.replace("/");
-      else load();
+      else {
+        setUserId(data.session.user.id);
+        load();
+      }
     });
   }, [router, load]);
+
+  async function upload(p: Equipment, file: File | undefined) {
+    if (!file) return;
+    if (!/^image\/(jpeg|png|webp)$/.test(file.type)) return toast("الصيغ المسموحة: JPG أو PNG أو WebP", { type: "error" });
+    if (file.size > 5 * 1024 * 1024) return toast("حجم الصورة يجب ألا يتجاوز 5 ميغابايت", { type: "error" });
+    setUploading(p.id);
+    try {
+      await EquipmentAPI.setImage(userId, p.id, file);
+      toast("تمت إضافة الصورة");
+      await load();
+    } catch (err) {
+      toast(friendlyError(err), { type: "error", duration: 4000 });
+    } finally {
+      setUploading(null);
+    }
+  }
 
   async function buy(p: Equipment) {
     haptic();
@@ -89,6 +110,11 @@ function Store() {
                       // eslint-disable-next-line @next/next/no-img-element
                       <img className="product-img" src={equipmentImageUrl(p.image_path)} alt={p.name} loading="lazy" />
                     )}
+                    <label className={`upload${p.image_path ? " has-image" : ""}`}>
+                      <input type="file" accept="image/jpeg,image/png,image/webp" hidden disabled={uploading === p.id}
+                        onChange={e => { upload(p, e.target.files?.[0]); e.target.value = ""; }} />
+                      {uploading === p.id ? <Spinner size={14} /> : p.image_path ? "تغيير الصورة" : "＋ إضافة صورة"}
+                    </label>
                     <span className="badge" style={{ alignSelf: "flex-start", padding: "0 12px" }}>{p.category}</span>
                     <h3>{p.name}</h3>
                     {p.weight_size && <small className="sub">{p.weight_size}</small>}
