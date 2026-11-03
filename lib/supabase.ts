@@ -64,13 +64,16 @@ export type Equipment = {
   price: number;
   weight_size: string | null;
   qty: number;
+  image_path: string | null;
 };
+
+export const equipmentImageUrl = (path: string) => sb.storage.from("equipment-images").getPublicUrl(path).data.publicUrl;
 
 export const EquipmentAPI = {
   async list(): Promise<Equipment[]> {
     const { data, error } = await sb
       .from("gym_equipment")
-      .select("id, name, category, price, weight_size, qty")
+      .select("id, name, category, price, weight_size, qty, image_path")
       .order("category")
       .order("name");
     if (error) throw error;

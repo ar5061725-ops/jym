@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { EquipmentAPI, sb, type Equipment } from "@/lib/supabase";
+import { EquipmentAPI, equipmentImageUrl, sb, type Equipment } from "@/lib/supabase";
 import { friendlyError, haptic } from "@/lib/utils";
 import { Spinner } from "@/components/Field";
 import { ToastProvider, useToast } from "@/components/Toast";
@@ -85,6 +85,10 @@ function Store() {
                 const out = p.qty === 0;
                 return (
                   <article key={p.id} className={`product card${out ? " out" : ""}`}>
+                    {p.image_path && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img className="product-img" src={equipmentImageUrl(p.image_path)} alt={p.name} loading="lazy" />
+                    )}
                     <span className="badge" style={{ alignSelf: "flex-start", padding: "0 12px" }}>{p.category}</span>
                     <h3>{p.name}</h3>
                     {p.weight_size && <small className="sub">{p.weight_size}</small>}
