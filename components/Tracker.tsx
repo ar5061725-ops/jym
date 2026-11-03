@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { sb, CatalogAPI, WorkoutsAPI, type CatalogItem, type Workout } from "@/lib/supabase";
@@ -152,6 +153,12 @@ export function Tracker({ user }: { user: User }) {
       </header>
 
       <div className="wrap wide stack">
+        <Link href="/store" className="btn btn-primary store-btn">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M6 6h15l-1.5 9h-12zM6 6 5 3H2M9 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM18 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2z" />
+          </svg>
+          شراء مستلزمات النادي
+        </Link>
         <div className="tabs" role="tablist">
           {([["workouts", "تمارين اليوم"], ["booking", "حجز المواعيد"]] as const).map(([id, label]) => (
             <button

@@ -114,6 +114,17 @@ h2{margin:0;font-size:18px;font-weight:700}
 .slot.full .badge,.slot.full .log-main small{color:#9CA3AF;background:#D1D5DB}
 .slot.full .btn{background:#D1D5DB;color:#9CA3AF}
 
+/* store */
+.store-btn{text-decoration:none}
+.icon-btn{text-decoration:none;font-size:22px}
+.products{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px}
+.product{display:flex;flex-direction:column;gap:10px}
+.product h3{margin:0;font-size:17px;font-weight:700}
+.price{color:var(--accent);font-size:18px}
+.product.out{background:#E5E7EB;border-color:#D1D5DB;color:#9CA3AF;box-shadow:none}
+.product.out .price,.product.out .sub,.product.out .badge{color:#9CA3AF}
+.product.out .btn{background:#D1D5DB;color:#9CA3AF}
+
 /* toast */
 #toasts{position:fixed;left:50%;bottom:calc(20px + var(--safe-b));transform:translateX(-50%);z-index:50;display:flex;flex-direction:column;gap:8px;width:min(92vw,420px);pointer-events:none}
 .toast{pointer-events:auto;display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:var(--r-md);background:#1E293B;color:#fff;border:1px solid #1E293B;

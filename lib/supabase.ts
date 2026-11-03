@@ -57,6 +57,33 @@ export const BookingsAPI = {
   },
 };
 
+export type Equipment = {
+  id: string;
+  name: string;
+  category: string;
+  price: number;
+  weight_size: string | null;
+  qty: number;
+};
+
+export const EquipmentAPI = {
+  async list(): Promise<Equipment[]> {
+    const { data, error } = await sb
+      .from("gym_equipment")
+      .select("id, name, category, price, weight_size, qty")
+      .order("category")
+      .order("name");
+    if (error) throw error;
+    return data as Equipment[];
+  },
+  /** Atomic purchase in the database; returns the remaining stock */
+  async buy(id: string, qty = 1): Promise<number> {
+    const { data, error } = await sb.rpc("buy_equipment", { p_id: id, p_qty: qty });
+    if (error) throw error;
+    return data as number;
+  },
+};
+
 export const CatalogAPI = {
   async list(): Promise<CatalogItem[]> {
     const { data, error } = await sb
