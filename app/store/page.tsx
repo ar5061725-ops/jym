@@ -21,6 +21,22 @@ function Store() {
   const [buying, setBuying] = useState<string | null>(null);
   const [uploading, setUploading] = useState<string | null>(null);
   const [userId, setUserId] = useState("");
+  const [selected, setSelected] = useState<string | null>(null);
+  const [descriptions, setDescriptions] = useState<Record<string, string>>({});
+  const [describing, setDescribing] = useState<string | null>(null);
+
+  async function describe(p: Equipment) {
+    haptic();
+    setDescribing(p.id);
+    try {
+      const text = await EquipmentAPI.describe(p.id);
+      setDescriptions(d => ({ ...d, [p.id]: text }));
+    } catch (err) {
+      toast(friendlyError(err), { type: "error", duration: 4000 });
+    } finally {
+      setDescribing(null);
+    }
+  }
 
   const load = useCallback(async () => {
     try {
@@ -105,7 +121,11 @@ function Store() {
               {shown.map(p => {
                 const out = p.qty === 0;
                 return (
-                  <article key={p.id} className={`product card${out ? " out" : ""}`}>
+                  <article
+                    key={p.id}
+                    className={`product card${out ? " out" : ""}${selected === p.id ? " selected" : ""}`}
+                    onClick={() => setSelected(p.id)}
+                  >
                     {p.image_path && (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img className="product-img" src={equipmentImageUrl(p.image_path)} alt={p.name} loading="lazy" />
@@ -125,6 +145,21 @@ function Store() {
                     <button className="btn btn-primary" disabled={out || buying === p.id} onClick={() => buy(p)}>
                       {buying === p.id ? <Spinner /> : out ? "غير متوفر" : "اشترِ الآن"}
                     </button>
+                    {selected === p.id && (
+                      <div className="ai-box" onClick={e => e.stopPropagation()}>
+                        <label htmlFor={`ai-${p.id}`}>وصف المنتج بالذكاء الاصطناعي</label>
+                        <textarea
+                          id={`ai-${p.id}`}
+                          readOnly
+                          rows={4}
+                          value={descriptions[p.id] ?? ""}
+                          placeholder={describing === p.id ? "جارٍ كتابة الوصف…" : "اضغط الزر لتوليد وصف لهذا المنتج"}
+                        />
+                        <button className="btn btn-ghost" disabled={describing === p.id} onClick={() => describe(p)}>
+                          {describing === p.id ? <><Spinner size={14} /> جارٍ التوليد…</> : descriptions[p.id] ? "✨ إعادة التوليد" : "✨ اطلب وصفًا بالذكاء الاصطناعي"}
+                        </button>
+                      </div>
+                    )}
                   </article>
                 );
               })}

@@ -79,6 +79,15 @@ export const EquipmentAPI = {
     if (error) throw error;
     return data as Equipment[];
   },
+  /** AI product description from the `generate-description` Edge Function (OpenRouter free model) */
+  async describe(id: string): Promise<string> {
+    const { data, error } = await sb.functions.invoke("generate-description", { body: { id } });
+    if (error) {
+      const body = await (error as { context?: Response }).context?.json?.().catch(() => null);
+      throw new Error(body?.error || error.message);
+    }
+    return data.description as string;
+  },
   /** Uploads into the caller's own folder, then attaches the file to the product */
   async setImage(userId: string, id: string, file: File) {
     const ext = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
