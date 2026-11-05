@@ -15,7 +15,8 @@ type Status = "loading" | "ready" | "error";
 
 export function Tracker({ user }: { user: User }) {
   const toast = useToast();
-  const name: string = user.user_metadata?.username || "مستخدم";
+  const guest = !!user.is_anonymous;
+  const name: string = guest ? "زائر" : user.user_metadata?.username || user.email || "مستخدم";
   const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [status, setStatus] = useState<Status>("loading");
   const [error, setError] = useState("");
@@ -144,7 +145,9 @@ export function Tracker({ user }: { user: User }) {
             disabled={loggingOut}
             onClick={() => {
               haptic();
-              logout();
+              // A guest can't sign back in to the same account, so confirm before losing the data
+              if (guest) toast("لن تتمكن من استرجاع تمارينك بعد الخروج", { type: "error", action: "خروج", onAction: logout, duration: 5000 });
+              else logout();
             }}
           >
             {loggingOut ? <Spinner /> : "خروج"}
@@ -153,6 +156,11 @@ export function Tracker({ user }: { user: User }) {
       </header>
 
       <div className="wrap wide stack">
+        {guest && (
+          <div className="alert info" role="note">
+            أنت تستخدم التطبيق كزائر. تمارينك محفوظة على هذا الجهاز ما دمت مسجّلاً، ولن تتمكن من استرجاعها بعد الخروج.
+          </div>
+        )}
         <Link href="/store" className="btn btn-primary store-btn">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="M6 6h15l-1.5 9h-12zM6 6 5 3H2M9 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM18 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2z" />
