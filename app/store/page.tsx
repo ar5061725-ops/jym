@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { EquipmentAPI, equipmentImageUrl, sb, type Equipment } from "@/lib/supabase";
+import { CartAPI, EquipmentAPI, equipmentImageUrl, sb, type CartRow, type Equipment } from "@/lib/supabase";
 import { friendlyError, haptic } from "@/lib/utils";
 import { Spinner } from "@/components/Field";
 import { ToastProvider, useToast } from "@/components/Toast";
@@ -18,7 +18,10 @@ function Store() {
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [error, setError] = useState("");
   const [category, setCategory] = useState("all");
-  const [buying, setBuying] = useState<string | null>(null);
+  const [cart, setCart] = useState<CartRow[]>([]);
+  const [cartOpen, setCartOpen] = useState(false);
+  const [adding, setAdding] = useState<string | null>(null);
+  const [checkingOut, setCheckingOut] = useState(false);
   const [uploading, setUploading] = useState<string | null>(null);
   const [userId, setUserId] = useState("");
   const [authReady, setAuthReady] = useState(false);
@@ -50,14 +53,24 @@ function Store() {
     }
   }, []);
 
+  const loadCart = useCallback(async () => {
+    try {
+      setCart(await CartAPI.list());
+    } catch (err) {
+      toast(friendlyError(err), { type: "error" });
+    }
+  }, [toast]);
+
   useEffect(() => {
-    // Visitors may browse; buying, uploading and AI descriptions need an account
+    // Visitors may browse; the cart, uploading and AI descriptions need an account
     sb.auth.getSession().then(({ data }) => {
-      setUserId(data.session?.user.id ?? "");
+      const id = data.session?.user.id ?? "";
+      setUserId(id);
       setAuthReady(true);
       load();
+      if (id) loadCart();
     });
-  }, [load]);
+  }, [load, loadCart]);
 
   /** Sends visitors to sign in, then back to the store */
   function needLogin() {
@@ -82,21 +95,57 @@ function Store() {
     }
   }
 
-  async function buy(p: Equipment) {
+  /** Adding to the cart needs an account */
+  async function addToCart(p: Equipment) {
     if (!authReady) return;
     if (!userId) return needLogin();
+    const inCart = cart.find(c => c.equipment_id === p.id)?.quantity ?? 0;
+    if (inCart >= p.qty) return toast("وصلت إلى الحد الأقصى المتوفر لهذا المنتج", { type: "error" });
     haptic();
-    setBuying(p.id);
+    setAdding(p.id);
     try {
-      const left = await EquipmentAPI.buy(p.id, 1);
-      toast(`تم شراء «${p.name}»${left === 0 ? " (آخر قطعة)" : ""}`);
+      await CartAPI.setQuantity(p.id, inCart + 1);
+      await loadCart();
+      toast(`أُضيف «${p.name}» إلى السلة`);
     } catch (err) {
       toast(friendlyError(err), { type: "error", duration: 4000 });
     } finally {
-      setBuying(null);
-      load(); // stock comes from the database
+      setAdding(null);
     }
   }
+
+  async function changeQuantity(row: CartRow, delta: number) {
+    const next = row.quantity + delta;
+    const stock = row.gym_equipment?.qty ?? 0;
+    if (next > stock) return toast("لا توجد كمية أكبر متوفرة", { type: "error" });
+    haptic();
+    try {
+      if (next < 1) await CartAPI.remove(row.id);
+      else await CartAPI.setQuantity(row.equipment_id, next);
+      await loadCart();
+    } catch (err) {
+      toast(friendlyError(err), { type: "error", duration: 4000 });
+    }
+  }
+
+  async function checkout() {
+    haptic();
+    setCheckingOut(true);
+    try {
+      const total = await CartAPI.checkout();
+      toast(`تمت عملية الشراء بنجاح. الإجمالي ${fmtPrice(total)}`, { duration: 4000 });
+      setCartOpen(false);
+    } catch (err) {
+      toast(friendlyError(err), { type: "error", duration: 5000 });
+    } finally {
+      setCheckingOut(false);
+      load(); // stock comes from the database
+      loadCart();
+    }
+  }
+
+  const cartCount = cart.reduce((s, c) => s + c.quantity, 0);
+  const cartTotal = cart.reduce((s, c) => s + Number(c.gym_equipment?.price ?? 0) * c.quantity, 0);
 
   const shown = category === "all" ? items : items.filter(i => i.category === category);
 
@@ -112,6 +161,12 @@ function Store() {
                 تسجيل الدخول
               </button>
             )}
+            <button className="icon-btn cart-btn" aria-label="سلة المشتريات" onClick={() => (userId ? setCartOpen(true) : needLogin())}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M6 6h15l-1.5 9h-12zM6 6 5 3H2M9 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM18 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2z" />
+              </svg>
+              {cartCount > 0 && <span className="cart-badge">{cartCount.toLocaleString("ar")}</span>}
+            </button>
           </div>
         </header>
         <div className="wrap wide stack">
@@ -170,8 +225,8 @@ function Store() {
                       <b className="price">{fmtPrice(p.price)}</b>
                       <small className="sub">{out ? "نفدت الكمية" : `المتوفر: ${p.qty.toLocaleString("ar")}`}</small>
                     </div>
-                    <button className="btn btn-primary" disabled={out || buying === p.id} onClick={() => buy(p)}>
-                      {buying === p.id ? <Spinner /> : out ? "غير متوفر" : "اشترِ الآن"}
+                    <button className="btn btn-primary" disabled={out || adding === p.id} onClick={() => addToCart(p)}>
+                      {adding === p.id ? <Spinner /> : out ? "غير متوفر" : "أضف إلى السلة"}
                     </button>
                     {selected === p.id && (
                       <div className="ai-box" onClick={e => e.stopPropagation()}>
@@ -194,6 +249,45 @@ function Store() {
             </div>
           )}
         </div>
+
+        {cartOpen && (
+          <div className="cart-overlay" onClick={() => setCartOpen(false)}>
+            <aside className="cart-panel" role="dialog" aria-label="سلة المشتريات" onClick={e => e.stopPropagation()}>
+              <div className="row-between">
+                <h2>سلة المشتريات</h2>
+                <button className="icon-btn" aria-label="إغلاق" onClick={() => setCartOpen(false)}>✕</button>
+              </div>
+              {!cart.length ? (
+                <div className="empty">السلة فارغة. أضف منتجات من المتجر.</div>
+              ) : (
+                <>
+                  <ul className="log">
+                    {cart.map(row => (
+                      <li key={row.id} className="cart-row">
+                        <div className="log-main">
+                          <b>{row.gym_equipment?.name}</b>
+                          <small>{fmtPrice(Number(row.gym_equipment?.price ?? 0) * row.quantity)}</small>
+                        </div>
+                        <div className="qty">
+                          <button className="icon-btn" aria-label="إنقاص" onClick={() => changeQuantity(row, -1)}>−</button>
+                          <b>{row.quantity.toLocaleString("ar")}</b>
+                          <button className="icon-btn" aria-label="زيادة" onClick={() => changeQuantity(row, 1)}>＋</button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="row-between cart-total">
+                    <span>الإجمالي</span>
+                    <b className="price">{fmtPrice(cartTotal)}</b>
+                  </div>
+                  <button className="btn btn-primary" disabled={checkingOut} onClick={checkout}>
+                    {checkingOut ? <><Spinner /> جارٍ الشراء…</> : "إتمام الشراء"}
+                  </button>
+                </>
+              )}
+            </aside>
+          </div>
+        )}
       </section>
     </div>
   );

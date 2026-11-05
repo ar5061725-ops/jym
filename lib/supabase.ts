@@ -108,6 +108,40 @@ export const EquipmentAPI = {
   },
 };
 
+export type CartRow = {
+  id: string;
+  equipment_id: string;
+  quantity: number;
+  gym_equipment: { name: string; price: number; qty: number; image_path: string | null } | null;
+};
+
+export const CartAPI = {
+  async list(): Promise<CartRow[]> {
+    const { data, error } = await sb
+      .from("cart_items")
+      .select("id, equipment_id, quantity, gym_equipment(name, price, qty, image_path)")
+      .order("created_at");
+    if (error) throw error;
+    return data as unknown as CartRow[];
+  },
+  async setQuantity(equipmentId: string, quantity: number) {
+    const { error } = await sb
+      .from("cart_items")
+      .upsert({ equipment_id: equipmentId, quantity }, { onConflict: "user_id,equipment_id" });
+    if (error) throw error;
+  },
+  async remove(id: string) {
+    const { error } = await sb.from("cart_items").delete().eq("id", id);
+    if (error) throw error;
+  },
+  /** Buys the whole cart atomically; returns the total */
+  async checkout(): Promise<number> {
+    const { data, error } = await sb.rpc("checkout_cart");
+    if (error) throw error;
+    return Number(data);
+  },
+};
+
 export const CatalogAPI = {
   async list(): Promise<CatalogItem[]> {
     const { data, error } = await sb
