@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { sb } from "@/lib/supabase";
@@ -12,6 +13,12 @@ function App() {
   const [user, setUser] = useState<User | null>(null);
   const [ready, setReady] = useState(false);
   const userId = useRef<string | null>(null);
+  const router = useRouter();
+  const [fromStore, setFromStore] = useState(false);
+
+  useEffect(() => {
+    setFromStore(new URLSearchParams(location.search).get("next") === "/store");
+  }, []);
 
   /* Auth session — reads the stored session automatically */
   useEffect(() => {
@@ -20,6 +27,8 @@ function App() {
       userId.current = u?.id ?? null;
       setUser(u);
       setReady(true);
+      // Visitors sent here from the store return to it after signing in
+      if (u && new URLSearchParams(location.search).get("next") === "/store") router.replace("/store");
     };
     const { data: sub } = sb.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_OUT") toast("تم تسجيل الخروج");
@@ -28,7 +37,7 @@ function App() {
     });
     sb.auth.getSession().then(({ data }) => onSession(data.session?.user ?? null));
     return () => sub.subscription.unsubscribe();
-  }, [toast]);
+  }, [toast, router]);
 
   return (
     <>
@@ -37,7 +46,7 @@ function App() {
       </div>
       <div id="app">
         <section className="screen" id="s-main">
-          {ready && (user ? <Tracker user={user} /> : <LoginScreen />)}
+          {ready && (user ? <Tracker user={user} /> : <LoginScreen fromStore={fromStore} />)}
         </section>
       </div>
     </>

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { sb } from "@/lib/supabase";
 import { useForm } from "@/lib/useForm";
@@ -40,7 +41,7 @@ export function Logo({ size = 72 }: { size?: number }) {
 const looksLikeEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 
 /** One form: a name or an email; the account is created automatically the first time it is used */
-export function LoginScreen() {
+export function LoginScreen({ fromStore = false }: { fromStore?: boolean }) {
   const toast = useToast();
   const [guestLoading, setGuestLoading] = useState(false);
   const f = useForm({ username: "", password: "" }, {
@@ -92,6 +93,11 @@ export function LoginScreen() {
         <h1>متتبع النادي</h1>
         <p className="sub">سجّل تمارينك وتابع تقدّمك يومياً</p>
       </div>
+      {fromStore && (
+        <div className="alert info" role="note" style={{ marginBottom: 12 }}>
+          تحتاج حسابًا لإتمام الشراء. سجّل الدخول وستعود إلى المتجر مباشرة.
+        </div>
+      )}
       <form className="card stack" ref={f.formRef} onSubmit={f.onSubmit} noValidate>
         <AlertBox alert={f.alert} />
         <Field name="username" label="الاسم أو البريد الإلكتروني" autoComplete="username" value={f.values.username} onChange={f.set("username")} invalid={f.invalid === "username"} />
@@ -127,6 +133,9 @@ export function LoginScreen() {
           </>
         )}
       </button>
+      <Link href="/store" className="btn btn-ghost" style={{ width: "100%", marginTop: 10 }}>
+        تصفّح المتجر بدون حساب
+      </Link>
       <p className="sub" style={{ textAlign: "center", fontSize: 13, marginTop: 10 }}>
         جرّب التطبيق بدون حساب. تمارينك تُحفظ على هذا الجهاز فقط ولن تستطيع استرجاعها بعد الخروج.
       </p>

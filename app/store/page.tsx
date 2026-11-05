@@ -21,11 +21,13 @@ function Store() {
   const [buying, setBuying] = useState<string | null>(null);
   const [uploading, setUploading] = useState<string | null>(null);
   const [userId, setUserId] = useState("");
+  const [authReady, setAuthReady] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [descriptions, setDescriptions] = useState<Record<string, string>>({});
   const [describing, setDescribing] = useState<string | null>(null);
 
   async function describe(p: Equipment) {
+    if (!userId) return needLogin();
     haptic();
     setDescribing(p.id);
     try {
@@ -49,17 +51,23 @@ function Store() {
   }, []);
 
   useEffect(() => {
+    // Visitors may browse; buying, uploading and AI descriptions need an account
     sb.auth.getSession().then(({ data }) => {
-      if (!data.session) router.replace("/");
-      else {
-        setUserId(data.session.user.id);
-        load();
-      }
+      setUserId(data.session?.user.id ?? "");
+      setAuthReady(true);
+      load();
     });
-  }, [router, load]);
+  }, [load]);
+
+  /** Sends visitors to sign in, then back to the store */
+  function needLogin() {
+    haptic();
+    router.push("/?next=/store");
+  }
 
   async function upload(p: Equipment, file: File | undefined) {
     if (!file) return;
+    if (!userId) return needLogin();
     if (!/^image\/(jpeg|png|webp)$/.test(file.type)) return toast("الصيغ المسموحة: JPG أو PNG أو WebP", { type: "error" });
     if (file.size > 5 * 1024 * 1024) return toast("حجم الصورة يجب ألا يتجاوز 5 ميغابايت", { type: "error" });
     setUploading(p.id);
@@ -75,6 +83,8 @@ function Store() {
   }
 
   async function buy(p: Equipment) {
+    if (!authReady) return;
+    if (!userId) return needLogin();
     haptic();
     setBuying(p.id);
     try {
@@ -97,9 +107,19 @@ function Store() {
           <div className="inner">
             <Link href="/" className="icon-btn" aria-label="رجوع">›</Link>
             <div className="who"><h2>مستلزمات النادي</h2></div>
+            {authReady && !userId && (
+              <button className="btn btn-primary" style={{ width: "auto", minHeight: 40, padding: "0 16px" }} onClick={needLogin}>
+                تسجيل الدخول
+              </button>
+            )}
           </div>
         </header>
         <div className="wrap wide stack">
+          {authReady && !userId && (
+            <div className="alert info" role="note">
+              يمكنك تصفّح المتجر بحرية. عند الشراء تحتاج حسابًا، وبعد تسجيل الدخول تعود إلى هنا.
+            </div>
+          )}
           <div className="chips" role="group" aria-label="التصنيف">
             {["all", ...CATEGORIES].map(c => (
               <button key={c} className="chip" aria-pressed={c === category} onClick={() => { haptic(); setCategory(c); }}>
@@ -130,7 +150,15 @@ function Store() {
                       // eslint-disable-next-line @next/next/no-img-element
                       <img className="product-img" src={equipmentImageUrl(p.image_path)} alt={p.name} loading="lazy" />
                     )}
-                    <label className={`upload${p.image_path ? " has-image" : ""}`}>
+                    <label
+                      className={`upload${p.image_path ? " has-image" : ""}`}
+                      onClick={e => {
+                        if (authReady && !userId) {
+                          e.preventDefault();
+                          needLogin();
+                        }
+                      }}
+                    >
                       <input type="file" accept="image/jpeg,image/png,image/webp" hidden disabled={uploading === p.id}
                         onChange={e => { upload(p, e.target.files?.[0]); e.target.value = ""; }} />
                       {uploading === p.id ? <Spinner size={14} /> : p.image_path ? "تغيير الصورة" : "＋ إضافة صورة"}
