@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { sb } from "@/lib/supabase";
 import { useForm } from "@/lib/useForm";
 import { friendlyError, haptic, usernameToEmail } from "@/lib/utils";
@@ -54,10 +54,6 @@ function AuthForm({ mode }: { mode: "login" | "register" }) {
       const isMail = v.username.includes("@");
       const email = isMail ? v.username.toLowerCase() : await usernameToEmail(v.username);
 
-      try {
-        localStorage.setItem("gym-returning", "1");
-      } catch {}
-
       if (!register) {
         const { error } = await sb.auth.signInWithPassword({ email, password: v.password });
         if (error && /Invalid login credentials/i.test(error.message)) {
@@ -84,7 +80,6 @@ function AuthForm({ mode }: { mode: "login" | "register" }) {
 
   return (
     <form className="card stack" ref={f.formRef} onSubmit={f.onSubmit} noValidate>
-      <h2>{register ? "تسجيل حساب جديد" : "تسجيل الدخول"}</h2>
       <AlertBox alert={f.alert} />
       <Field name="username" label="الاسم أو البريد الإلكتروني" autoComplete="username" value={f.values.username} onChange={f.set("username")} invalid={f.invalid === "username"} />
       <Field name="password" label="الرقم السري (6 خانات على الأقل)" type="password" autoComplete={register ? "new-password" : "current-password"} value={f.values.password} onChange={f.set("password")} invalid={f.invalid === "password"} />
@@ -112,13 +107,6 @@ export function LoginScreen({ fromStore = false }: { fromStore?: boolean }) {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [guestLoading, setGuestLoading] = useState(false);
 
-  // First visit on this device → open on registration; afterwards on sign in
-  useEffect(() => {
-    try {
-      if (!localStorage.getItem("gym-returning")) setMode("register");
-    } catch {}
-  }, []);
-
   async function guest() {
     setGuestLoading(true);
     try {
@@ -144,13 +132,24 @@ export function LoginScreen({ fromStore = false }: { fromStore?: boolean }) {
           تحتاج حسابًا لإضافة المنتجات إلى السلة. سجّل الدخول أو أنشئ حسابًا وستعود إلى المتجر مباشرة.
         </div>
       )}
+      <div className="tabs" role="tablist" style={{ marginBottom: 12 }}>
+        {([["login", "تسجيل الدخول"], ["register", "مستخدم جديد"]] as const).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={mode === id}
+            className="tab"
+            onClick={() => {
+              haptic();
+              setMode(id);
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
       <AuthForm key={mode} mode={mode} />
-      <p className="sub" style={{ textAlign: "center", marginTop: 12 }}>
-        {mode === "login" ? "ليس لديك حساب؟" : "لديك حساب بالفعل؟"}{" "}
-        <button className="btn-link" type="button" onClick={() => { haptic(); setMode(mode === "login" ? "register" : "login"); }}>
-          {mode === "login" ? "تسجيل جديد" : "تسجيل الدخول"}
-        </button>
-      </p>
       <div className="divider"><span>أو</span></div>
       <button className="btn btn-ghost" type="button" style={{ width: "100%" }} onClick={guest} disabled={guestLoading}>
         {guestLoading ? (
