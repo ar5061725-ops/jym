@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { sb } from "@/lib/supabase";
 import { useForm } from "@/lib/useForm";
 import { friendlyError, haptic, usernameToEmail } from "@/lib/utils";
@@ -53,6 +53,10 @@ function AuthForm({ mode }: { mode: "login" | "register" }) {
     submit: async (v, { alert }) => {
       const isMail = v.username.includes("@");
       const email = isMail ? v.username.toLowerCase() : await usernameToEmail(v.username);
+
+      try {
+        localStorage.setItem("gym-returning", "1");
+      } catch {}
 
       if (!register) {
         const { error } = await sb.auth.signInWithPassword({ email, password: v.password });
@@ -107,6 +111,13 @@ export function LoginScreen({ fromStore = false }: { fromStore?: boolean }) {
   const toast = useToast();
   const [mode, setMode] = useState<"login" | "register">("login");
   const [guestLoading, setGuestLoading] = useState(false);
+
+  // First visit on this device → open on registration; afterwards on sign in
+  useEffect(() => {
+    try {
+      if (!localStorage.getItem("gym-returning")) setMode("register");
+    } catch {}
+  }, []);
 
   async function guest() {
     setGuestLoading(true);
