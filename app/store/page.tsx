@@ -62,15 +62,19 @@ function Store() {
   }, [toast]);
 
   useEffect(() => {
-    // Visitors may browse; the cart, uploading and AI descriptions need an account
+    // The store is for signed-in users: others are sent to sign in and return here
     sb.auth.getSession().then(({ data }) => {
       const id = data.session?.user.id ?? "";
+      if (!id) {
+        router.replace("/?next=/store");
+        return;
+      }
       setUserId(id);
       setAuthReady(true);
       load();
-      if (id) loadCart();
+      loadCart();
     });
-  }, [load, loadCart]);
+  }, [load, loadCart, router]);
 
   /** Sends visitors to sign in, then back to the store */
   function needLogin() {
@@ -156,11 +160,6 @@ function Store() {
           <div className="inner">
             <Link href="/" className="icon-btn" aria-label="رجوع">›</Link>
             <div className="who"><h2>مستلزمات النادي</h2></div>
-            {authReady && !userId && (
-              <button className="btn btn-primary" style={{ width: "auto", minHeight: 40, padding: "0 16px" }} onClick={needLogin}>
-                تسجيل الدخول
-              </button>
-            )}
             <button className="icon-btn cart-btn" aria-label="سلة المشتريات" onClick={() => (userId ? setCartOpen(true) : needLogin())}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M6 6h15l-1.5 9h-12zM6 6 5 3H2M9 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM18 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2z" />
@@ -170,11 +169,6 @@ function Store() {
           </div>
         </header>
         <div className="wrap wide stack">
-          {authReady && !userId && (
-            <div className="alert info" role="note">
-              يمكنك تصفّح المتجر بحرية. عند الشراء تحتاج حسابًا، وبعد تسجيل الدخول تعود إلى هنا.
-            </div>
-          )}
           <div className="chips" role="group" aria-label="التصنيف">
             {["all", ...CATEGORIES].map(c => (
               <button key={c} className="chip" aria-pressed={c === category} onClick={() => { haptic(); setCategory(c); }}>

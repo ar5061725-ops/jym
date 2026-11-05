@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 import { sb } from "@/lib/supabase";
 import { useForm } from "@/lib/useForm";
@@ -129,7 +128,7 @@ export function LoginScreen({ fromStore = false }: { fromStore?: boolean }) {
       </div>
       {fromStore && (
         <div className="alert info" role="note" style={{ marginBottom: 12 }}>
-          تحتاج حسابًا لإضافة المنتجات إلى السلة. سجّل الدخول أو أنشئ حسابًا وستعود إلى المتجر مباشرة.
+          المتجر للمسجّلين فقط. سجّل الدخول أو أنشئ حسابًا وستعود إلى المتجر مباشرة.
         </div>
       )}
       <div className="tabs" role="tablist" style={{ marginBottom: 12 }}>
@@ -167,9 +166,6 @@ export function LoginScreen({ fromStore = false }: { fromStore?: boolean }) {
           </>
         )}
       </button>
-      <Link href="/store" className="btn btn-ghost" style={{ width: "100%", marginTop: 10 }}>
-        تصفّح المتجر بدون حساب
-      </Link>
       <p className="sub" style={{ textAlign: "center", fontSize: 13, marginTop: 10 }}>
         جرّب التطبيق بدون حساب. تمارينك تُحفظ على هذا الجهاز فقط ولن تستطيع استرجاعها بعد الخروج.
       </p>
