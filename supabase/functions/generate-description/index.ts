@@ -42,12 +42,31 @@ async function ask(apiKey: string, model: string, prompt: string): Promise<strin
   return text;
 }
 
+// Keyless free fallback, used when no OpenRouter key is configured or all OpenRouter models fail
+async function askFree(prompt: string): Promise<string> {
+  const res = await fetch("https://text.pollinations.ai/openai", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "openai",
+      messages: [
+        { role: "system", content: "أنت كاتب محتوى تسويقي لمتجر مستلزمات رياضية. تكتب بالعربية الفصحى المبسّطة وصفًا قصيرًا وجذابًا للمنتج." },
+        { role: "user", content: prompt },
+      ],
+      max_tokens: 400,
+    }),
+  });
+  if (!res.ok) throw new Error(`free: ${res.status}`);
+  const text = (await res.json())?.choices?.[0]?.message?.content?.trim();
+  if (!text) throw new Error("free: empty");
+  return text;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
   const apiKey = Deno.env.get("OPENROUTER_API_KEY");
-  if (!apiKey) return json({ error: "مفتاح OpenRouter غير مضبوط في أسرار الدالة" }, 500);
 
   let id: unknown;
   try {
@@ -78,12 +97,17 @@ Deno.serve(async (req: Request) => {
 
   const first = Deno.env.get("OPENROUTER_MODEL");
   const models = first ? [first, ...FALLBACK_MODELS] : FALLBACK_MODELS;
-  for (const model of models) {
+  for (const model of apiKey ? models : []) {
     try {
-      return json({ description: await ask(apiKey, model, prompt), model });
+      return json({ description: await ask(apiKey!, model, prompt), model });
     } catch (e) {
       console.error(String(e));
     }
+  }
+  try {
+    return json({ description: await askFree(prompt), model: "free" });
+  } catch (e) {
+    console.error(String(e));
   }
   return json({ error: "تعذّر توليد الوصف الآن، حاول بعد قليل" }, 502);
 });
