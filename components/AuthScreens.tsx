@@ -40,24 +40,29 @@ export function Logo({ size = 72 }: { size?: number }) {
 
 const looksLikeEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 
-/** One form: a name or an email; the account is created automatically the first time it is used */
-export function LoginScreen({ fromStore = false }: { fromStore?: boolean }) {
-  const toast = useToast();
-  const [guestLoading, setGuestLoading] = useState(false);
-  const f = useForm({ username: "", password: "" }, {
+/** Sign in or register with a name or an email; remounted (key) when the mode changes */
+function AuthForm({ mode }: { mode: "login" | "register" }) {
+  const register = mode === "register";
+  const f = useForm({ username: "", password: "", confirm: "" }, {
     validate: v =>
       v.username.length < 2 ? { field: "username", message: "أدخل اسماً أو بريداً إلكترونياً" }
       : v.username.includes("@") && !looksLikeEmail(v.username) ? { field: "username", message: "أدخل بريداً إلكترونياً صحيحاً" }
       : v.password.length < 6 ? { field: "password", message: "الرقم السري يجب أن يكون 6 خانات على الأقل" }
+      : register && v.password !== v.confirm ? { field: "confirm", message: "الرقمان السريان غير متطابقين" }
       : null,
     submit: async (v, { alert }) => {
       const isMail = v.username.includes("@");
       const email = isMail ? v.username.toLowerCase() : await usernameToEmail(v.username);
-      const signIn = await sb.auth.signInWithPassword({ email, password: v.password });
-      if (!signIn.error) return;
-      if (!/Invalid login credentials/i.test(signIn.error.message)) throw signIn.error;
 
-      // Unknown name/email → create it; a known one with a wrong password fails here
+      if (!register) {
+        const { error } = await sb.auth.signInWithPassword({ email, password: v.password });
+        if (error && /Invalid login credentials/i.test(error.message)) {
+          throw new Error("الاسم أو الرقم السري غير صحيح. إذا لم يكن لديك حساب اضغط «تسجيل جديد».");
+        }
+        if (error) throw error;
+        return;
+      }
+
       const { data, error } = await sb.auth.signUp({
         email,
         password: v.password,
@@ -66,12 +71,42 @@ export function LoginScreen({ fromStore = false }: { fromStore?: boolean }) {
           : { data: { username: v.username } },
       });
       if (error && /already registered|already been registered/i.test(error.message)) {
-        throw new Error("الرقم السري غير صحيح");
+        throw new Error("هذا الاسم أو البريد مسجّل مسبقاً. سجّل الدخول بدلاً من ذلك.");
       }
       if (error) throw error;
       if (!data.session) alert("تم إنشاء الحساب! افتح بريدك لتأكيده ثم سجّل الدخول.", "ok");
     },
   });
+
+  return (
+    <form className="card stack" ref={f.formRef} onSubmit={f.onSubmit} noValidate>
+      <h2>{register ? "تسجيل حساب جديد" : "تسجيل الدخول"}</h2>
+      <AlertBox alert={f.alert} />
+      <Field name="username" label="الاسم أو البريد الإلكتروني" autoComplete="username" value={f.values.username} onChange={f.set("username")} invalid={f.invalid === "username"} />
+      <Field name="password" label="الرقم السري (6 خانات على الأقل)" type="password" autoComplete={register ? "new-password" : "current-password"} value={f.values.password} onChange={f.set("password")} invalid={f.invalid === "password"} />
+      {register && (
+        <Field name="confirm" label="تأكيد الرقم السري" type="password" autoComplete="new-password" value={f.values.confirm} onChange={f.set("confirm")} invalid={f.invalid === "confirm"} />
+      )}
+      <button className="btn btn-primary" type="submit" disabled={f.loading}>
+        {f.loading ? (
+          <>
+            <Spinner />
+            {register ? "جارٍ الإنشاء…" : "جارٍ الدخول…"}
+          </>
+        ) : register ? (
+          "إنشاء الحساب"
+        ) : (
+          "دخول"
+        )}
+      </button>
+    </form>
+  );
+}
+
+export function LoginScreen({ fromStore = false }: { fromStore?: boolean }) {
+  const toast = useToast();
+  const [mode, setMode] = useState<"login" | "register">("login");
+  const [guestLoading, setGuestLoading] = useState(false);
 
   async function guest() {
     setGuestLoading(true);
@@ -95,27 +130,16 @@ export function LoginScreen({ fromStore = false }: { fromStore?: boolean }) {
       </div>
       {fromStore && (
         <div className="alert info" role="note" style={{ marginBottom: 12 }}>
-          تحتاج حسابًا لإتمام الشراء. سجّل الدخول وستعود إلى المتجر مباشرة.
+          تحتاج حسابًا لإضافة المنتجات إلى السلة. سجّل الدخول أو أنشئ حسابًا وستعود إلى المتجر مباشرة.
         </div>
       )}
-      <form className="card stack" ref={f.formRef} onSubmit={f.onSubmit} noValidate>
-        <AlertBox alert={f.alert} />
-        <Field name="username" label="الاسم أو البريد الإلكتروني" autoComplete="username" value={f.values.username} onChange={f.set("username")} invalid={f.invalid === "username"} />
-        <Field name="password" label="الرقم السري" type="password" autoComplete="current-password" value={f.values.password} onChange={f.set("password")} invalid={f.invalid === "password"} />
-        <button className="btn btn-primary" type="submit" disabled={f.loading}>
-          {f.loading ? (
-            <>
-              <Spinner />
-              جارٍ الدخول…
-            </>
-          ) : (
-            "دخول"
-          )}
+      <AuthForm key={mode} mode={mode} />
+      <p className="sub" style={{ textAlign: "center", marginTop: 12 }}>
+        {mode === "login" ? "ليس لديك حساب؟" : "لديك حساب بالفعل؟"}{" "}
+        <button className="btn-link" type="button" onClick={() => { haptic(); setMode(mode === "login" ? "register" : "login"); }}>
+          {mode === "login" ? "تسجيل جديد" : "تسجيل الدخول"}
         </button>
-        <p className="sub" style={{ fontSize: 13, textAlign: "center" }}>
-          أول مرة؟ اكتب اسماً (أو بريداً) ورقماً سرياً جديدين وسيُنشأ حسابك تلقائياً.
-        </p>
-      </form>
+      </p>
       <div className="divider"><span>أو</span></div>
       <button className="btn btn-ghost" type="button" style={{ width: "100%" }} onClick={guest} disabled={guestLoading}>
         {guestLoading ? (
