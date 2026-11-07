@@ -73,6 +73,10 @@ function AuthForm({ mode }: { mode: "login" | "register" }) {
         throw new Error("هذا الاسم أو البريد مسجّل مسبقاً. سجّل الدخول بدلاً من ذلك.");
       }
       if (error) throw error;
+      // For an existing email Supabase answers "success" without sending anything (empty identities)
+      if (data.user && data.user.identities?.length === 0) {
+        throw new Error("هذا البريد مسجّل مسبقاً. سجّل الدخول بدلاً من ذلك.");
+      }
       if (!data.session) alert("تم إنشاء الحساب! افتح بريدك لتأكيده ثم سجّل الدخول.", "ok");
     },
   });
