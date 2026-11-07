@@ -135,8 +135,8 @@ export const CartAPI = {
     if (error) throw error;
   },
   /** Buys the whole cart atomically; returns the total */
-  async checkout(): Promise<number> {
-    const { data, error } = await sb.rpc("checkout_cart");
+  async checkout(method: string): Promise<number> {
+    const { data, error } = await sb.rpc("checkout_cart", { p_method: method });
     if (error) throw error;
     return Number(data);
   },

@@ -9,7 +9,12 @@ import { Spinner } from "@/components/Field";
 import { ToastProvider, useToast } from "@/components/Toast";
 
 const CATEGORIES = ["أثقال دمبلز", "بارات", "أجهزة كارديو", "حبال مقاومة", "فرشات تدريب"];
-const fmtPrice = (n: number) => `${Number(n).toLocaleString("ar", { minimumFractionDigits: 0, maximumFractionDigits: 3 })} د.ك`;
+const PAYMENT_METHODS = [
+  { id: "bank_card", label: "بطاقة بنكية" },
+  { id: "apple_pay", label: "آبل باي" },
+  { id: "visa", label: "فيزا" },
+];
+const fmtPrice =(n: number) => `${Number(n).toLocaleString("ar", { minimumFractionDigits: 0, maximumFractionDigits: 3 })} د.ك`;
 
 function Store() {
   const router = useRouter();
@@ -22,6 +27,8 @@ function Store() {
   const [cartOpen, setCartOpen] = useState(false);
   const [adding, setAdding] = useState<string | null>(null);
   const [checkingOut, setCheckingOut] = useState(false);
+  const [isGuest, setIsGuest] = useState(false);
+  const [payment, setPayment] = useState("");
   const [uploading, setUploading] = useState<string | null>(null);
   const [userId, setUserId] = useState("");
   const [authReady, setAuthReady] = useState(false);
@@ -70,6 +77,7 @@ function Store() {
         return;
       }
       setUserId(id);
+      setIsGuest(!!data.session?.user.is_anonymous);
       setAuthReady(true);
       load();
       loadCart();
@@ -99,10 +107,25 @@ function Store() {
     }
   }
 
-  /** Adding to the cart needs an account */
+  /** Guests may look around, but only registered users can use the cart and buy */
+  function guestBlocked() {
+    haptic();
+    toast("الشراء للمستخدمين المسجّلين فقط. أنشئ حساباً أولاً.", {
+      type: "error",
+      action: "إنشاء حساب",
+      duration: 6000,
+      onAction: async () => {
+        await sb.auth.signOut();
+        router.replace("/?next=/store");
+      },
+    });
+  }
+
+  /** Adding to the cart needs a registered account */
   async function addToCart(p: Equipment) {
     if (!authReady) return;
     if (!userId) return needLogin();
+    if (isGuest) return guestBlocked();
     const inCart = cart.find(c => c.equipment_id === p.id)?.quantity ?? 0;
     if (inCart >= p.qty) return toast("وصلت إلى الحد الأقصى المتوفر لهذا المنتج", { type: "error" });
     haptic();
@@ -133,12 +156,16 @@ function Store() {
   }
 
   async function checkout() {
+    if (isGuest) return guestBlocked();
+    if (!payment) return toast("اختر وسيلة الدفع أولاً", { type: "error" });
     haptic();
     setCheckingOut(true);
     try {
-      const total = await CartAPI.checkout();
-      toast(`تمت عملية الشراء بنجاح. الإجمالي ${fmtPrice(total)}`, { duration: 4000 });
+      const total = await CartAPI.checkout(payment);
+      const label = PAYMENT_METHODS.find(m => m.id === payment)?.label;
+      toast(`تمت عملية الشراء بنجاح (${label}). الإجمالي ${fmtPrice(total)}`, { duration: 4000 });
       setCartOpen(false);
+      setPayment("");
     } catch (err) {
       toast(friendlyError(err), { type: "error", duration: 5000 });
     } finally {
@@ -160,7 +187,7 @@ function Store() {
           <div className="inner">
             <Link href="/" className="icon-btn" aria-label="رجوع">›</Link>
             <div className="who"><h2>مستلزمات النادي</h2></div>
-            <button className="icon-btn cart-btn" aria-label="سلة المشتريات" onClick={() => (userId ? setCartOpen(true) : needLogin())}>
+            <button className="icon-btn cart-btn" aria-label="سلة المشتريات" onClick={() => (!userId ? needLogin() : isGuest ? guestBlocked() : setCartOpen(true))}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M6 6h15l-1.5 9h-12zM6 6 5 3H2M9 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM18 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2z" />
               </svg>
@@ -274,7 +301,28 @@ function Store() {
                     <span>الإجمالي</span>
                     <b className="price">{fmtPrice(cartTotal)}</b>
                   </div>
-                  <button className="btn btn-primary" disabled={checkingOut} onClick={checkout}>
+                  <div className="field">
+                    <label id="pay-label">اختر وسيلة الدفع</label>
+                    <div className="pay-options" role="radiogroup" aria-labelledby="pay-label">
+                      {PAYMENT_METHODS.map(m => (
+                        <button
+                          key={m.id}
+                          type="button"
+                          role="radio"
+                          aria-checked={payment === m.id}
+                          className="pay-option"
+                          onClick={() => {
+                            haptic();
+                            setPayment(m.id);
+                          }}
+                        >
+                          {m.label}
+                        </button>
+                      ))}
+                    </div>
+                    <small className="sub">الدفع الإلكتروني الفعلي غير مفعّل بعد، يُسجَّل الطلب بوسيلة الدفع المختارة فقط.</small>
+                  </div>
+                  <button className="btn btn-primary" disabled={checkingOut || !payment} onClick={checkout}>
                     {checkingOut ? <><Spinner /> جارٍ الشراء…</> : "إتمام الشراء"}
                   </button>
                 </>
