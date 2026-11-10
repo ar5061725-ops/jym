@@ -134,12 +134,27 @@ export const CartAPI = {
     const { error } = await sb.from("cart_items").delete().eq("id", id);
     if (error) throw error;
   },
-  /** Buys the whole cart atomically; returns the total */
-  async checkout(method: string): Promise<number> {
-    const { data, error } = await sb.rpc("checkout_cart", { p_method: method });
-    if (error) throw error;
-    return Number(data);
-  },
+};
+
+/** Calls an Edge Function and surfaces its Arabic error message */
+async function invoke<T>(name: string, body: Record<string, unknown>): Promise<T> {
+  const { data, error } = await sb.functions.invoke(name, { body });
+  if (error) {
+    const detail = await (error as { context?: Response }).context?.json?.().catch(() => null);
+    throw new Error(detail?.error || error.message);
+  }
+  return data as T;
+}
+
+export const PaymentAPI = {
+  /** `create-payment`: MyFatoorah payment link for the caller's cart */
+  create: () => invoke<{ url: string; invoiceId: number; amount: number }>("create-payment", {}),
+  /** `confirm-payment`: verifies the payment with MyFatoorah, then turns the cart into an order */
+  confirm: (paymentId: string) =>
+    invoke<{ ok: boolean; already?: boolean; total?: number; invoiceId?: number; status?: string; paid?: boolean; error?: string }>(
+      "confirm-payment",
+      { paymentId },
+    ),
 };
 
 export const CatalogAPI = {

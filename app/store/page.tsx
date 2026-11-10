@@ -3,17 +3,12 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { CartAPI, EquipmentAPI, equipmentImageUrl, sb, type CartRow, type Equipment } from "@/lib/supabase";
+import { CartAPI, EquipmentAPI, PaymentAPI, equipmentImageUrl, sb, type CartRow, type Equipment } from "@/lib/supabase";
 import { friendlyError, haptic } from "@/lib/utils";
 import { Spinner } from "@/components/Field";
 import { ToastProvider, useToast } from "@/components/Toast";
 
 const CATEGORIES = ["أثقال دمبلز", "بارات", "أجهزة كارديو", "حبال مقاومة", "فرشات تدريب"];
-const PAYMENT_METHODS = [
-  { id: "bank_card", label: "بطاقة بنكية" },
-  { id: "apple_pay", label: "آبل باي" },
-  { id: "visa", label: "فيزا" },
-];
 const fmtPrice =(n: number) => `${Number(n).toLocaleString("ar", { minimumFractionDigits: 0, maximumFractionDigits: 3 })} د.ك`;
 
 function Store() {
@@ -28,7 +23,6 @@ function Store() {
   const [adding, setAdding] = useState<string | null>(null);
   const [checkingOut, setCheckingOut] = useState(false);
   const [isGuest, setIsGuest] = useState(false);
-  const [payment, setPayment] = useState("");
   const [uploading, setUploading] = useState<string | null>(null);
   const [userId, setUserId] = useState("");
   const [authReady, setAuthReady] = useState(false);
@@ -155,25 +149,37 @@ function Store() {
     }
   }
 
+  /** Asks the `create-payment` Edge Function for a MyFatoorah link and opens it in a new tab */
   async function checkout() {
     if (isGuest) return guestBlocked();
-    if (!payment) return toast("اختر وسيلة الدفع أولاً", { type: "error" });
     haptic();
     setCheckingOut(true);
+    // Open the tab inside the click so the browser doesn't treat it as a blocked pop-up
+    const tab = window.open("", "_blank");
     try {
-      const total = await CartAPI.checkout(payment);
-      const label = PAYMENT_METHODS.find(m => m.id === payment)?.label;
-      toast(`تمت عملية الشراء بنجاح (${label}). الإجمالي ${fmtPrice(total)}`, { duration: 4000 });
-      setCartOpen(false);
-      setPayment("");
+      const { url } = await PaymentAPI.create();
+      if (tab) tab.location.href = url;
+      else window.open(url, "_blank");
+      toast("فُتحت صفحة الدفع في تبويب جديد. أكمل الدفع هناك.", { duration: 5000 });
     } catch (err) {
-      toast(friendlyError(err), { type: "error", duration: 5000 });
+      tab?.close();
+      toast(friendlyError(err), { type: "error", duration: 6000 });
     } finally {
       setCheckingOut(false);
-      load(); // stock comes from the database
-      loadCart();
     }
   }
+
+  // Coming back from the payment tab: stock and cart may have changed
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState === "visible" && userId) {
+        load();
+        loadCart();
+      }
+    };
+    document.addEventListener("visibilitychange", refresh);
+    return () => document.removeEventListener("visibilitychange", refresh);
+  }, [userId, load, loadCart]);
 
   const cartCount = cart.reduce((s, c) => s + c.quantity, 0);
   const cartTotal = cart.reduce((s, c) => s + Number(c.gym_equipment?.price ?? 0) * c.quantity, 0);
@@ -301,29 +307,9 @@ function Store() {
                     <span>الإجمالي</span>
                     <b className="price">{fmtPrice(cartTotal)}</b>
                   </div>
-                  <div className="field">
-                    <label id="pay-label">اختر وسيلة الدفع</label>
-                    <div className="pay-options" role="radiogroup" aria-labelledby="pay-label">
-                      {PAYMENT_METHODS.map(m => (
-                        <button
-                          key={m.id}
-                          type="button"
-                          role="radio"
-                          aria-checked={payment === m.id}
-                          className="pay-option"
-                          onClick={() => {
-                            haptic();
-                            setPayment(m.id);
-                          }}
-                        >
-                          {m.label}
-                        </button>
-                      ))}
-                    </div>
-                    <small className="sub">الدفع الإلكتروني الفعلي غير مفعّل بعد، يُسجَّل الطلب بوسيلة الدفع المختارة فقط.</small>
-                  </div>
-                  <button className="btn btn-primary" disabled={checkingOut || !payment} onClick={checkout}>
-                    {checkingOut ? <><Spinner /> جارٍ الشراء…</> : "إتمام الشراء"}
+                  <small className="sub">ستختار وسيلة الدفع (بطاقة بنكية، فيزا، آبل باي…) في صفحة الدفع الآمنة التي تفتح في تبويب جديد.</small>
+                  <button className="btn btn-primary" disabled={checkingOut} onClick={checkout}>
+                    {checkingOut ? <><Spinner /> جارٍ تجهيز صفحة الدفع…</> : "إتمام الشراء والدفع"}
                   </button>
                 </>
               )}
