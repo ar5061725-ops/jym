@@ -193,6 +193,7 @@ function Store() {
           <div className="inner">
             <Link href="/" className="icon-btn" aria-label="رجوع">›</Link>
             <div className="who"><h2>مستلزمات النادي</h2></div>
+            <Link href="/orders" className="btn btn-ghost" style={{ minHeight: 40, padding: "0 14px" }}>طلباتي</Link>
             <button className="icon-btn cart-btn" aria-label="سلة المشتريات" onClick={() => (!userId ? needLogin() : isGuest ? guestBlocked() : setCartOpen(true))}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M6 6h15l-1.5 9h-12zM6 6 5 3H2M9 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM18 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2z" />

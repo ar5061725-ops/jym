@@ -17,7 +17,11 @@ const json = (body: unknown, status = 200) =>
 const BASE_URL = (Deno.env.get("MYFATOORAH_BASE_URL") ?? "https://api.myfatoorah.com").replace(/\/$/, "");
 const SITE_URL = (Deno.env.get("SITE_URL") ?? "https://jym-five.vercel.app").replace(/\/$/, "");
 
-type CartLine = { quantity: number; gym_equipment: { name: string; price: number; qty: number } | null };
+type CartLine = {
+  equipment_id: string;
+  quantity: number;
+  gym_equipment: { name: string; price: number; qty: number } | null;
+};
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -37,7 +41,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: cart, error: cartError } = await userClient
     .from("cart_items")
-    .select("quantity, gym_equipment(name, price, qty)");
+    .select("equipment_id, quantity, gym_equipment(name, price, qty)");
   if (cartError) return json({ error: "تعذّر قراءة السلة" }, 500);
   const lines = (cart ?? []) as unknown as CartLine[];
   if (!lines.length) return json({ error: "السلة فارغة" }, 400);
@@ -50,11 +54,24 @@ Deno.serve(async (req: Request) => {
 
   const round3 = (n: number) => Math.round(n * 1000) / 1000;
   const items = lines.map(l => ({
-    ItemName: l.gym_equipment!.name,
-    Quantity: l.quantity,
-    UnitPrice: round3(Number(l.gym_equipment!.price)),
+    equipment_id: l.equipment_id,
+    name: l.gym_equipment!.name,
+    quantity: l.quantity,
+    unit_price: round3(Number(l.gym_equipment!.price)),
   }));
-  const total = round3(items.reduce((s, i) => s + i.UnitPrice * i.Quantity, 0));
+  const total = round3(items.reduce((s, i) => s + i.unit_price * i.quantity, 0));
+
+  // The order exists (pending) before the customer pays, with a snapshot of what they are paying for
+  const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+  const { data: order, error: orderError } = await admin
+    .from("orders")
+    .insert({ user_id: user.id, items, amount: total })
+    .select("id")
+    .single();
+  if (orderError || !order) {
+    console.error(orderError?.message);
+    return json({ error: "تعذّر إنشاء الطلب" }, 500);
+  }
 
   // Internal sign-in addresses (name accounts) are not real mailboxes
   const email = user.email && !user.email.endsWith("@gym-app.dev") ? user.email : undefined;
@@ -68,11 +85,11 @@ Deno.serve(async (req: Request) => {
       InvoiceValue: total,
       DisplayCurrencyIso: "KWD",
       CustomerEmail: email,
-      CallBackUrl: `${SITE_URL}/payment/result`,
-      ErrorUrl: `${SITE_URL}/payment/result`,
+      CallBackUrl: `${SITE_URL}/payment/success`,
+      ErrorUrl: `${SITE_URL}/payment/error`,
       Language: "AR",
-      CustomerReference: user.id,
-      InvoiceItems: items,
+      CustomerReference: order.id,
+      InvoiceItems: items.map(i => ({ ItemName: i.name, Quantity: i.quantity, UnitPrice: i.unit_price })),
     }),
   });
 
@@ -81,17 +98,11 @@ Deno.serve(async (req: Request) => {
   const invoiceId: number | undefined = result?.Data?.InvoiceId;
   if (!res.ok || !result?.IsSuccess || !url || !invoiceId) {
     console.error("SendPayment failed", res.status, JSON.stringify(result)?.slice(0, 500));
+    await admin.from("orders").delete().eq("id", order.id);
     const detail = result?.ValidationErrors?.map((e: { Error: string }) => e.Error).join("، ") || result?.Message;
     return json({ error: `تعذّر إنشاء رابط الدفع${detail ? `: ${detail}` : ""}` }, 502);
   }
 
-  // Remember the invoice so confirm-payment can match the payment to this user and amount
-  const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-  const { error: insertError } = await admin.from("payments").insert({ user_id: user.id, invoice_id: invoiceId, amount: total });
-  if (insertError) {
-    console.error(insertError.message);
-    return json({ error: "تعذّر تسجيل عملية الدفع" }, 500);
-  }
-
-  return json({ url, invoiceId, amount: total });
+  await admin.from("orders").update({ invoice_id: invoiceId, updated_at: new Date().toISOString() }).eq("id", order.id);
+  return json({ url, invoiceId, orderId: order.id, amount: total });
 });

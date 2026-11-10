@@ -149,12 +149,33 @@ async function invoke<T>(name: string, body: Record<string, unknown>): Promise<T
 export const PaymentAPI = {
   /** `create-payment`: MyFatoorah payment link for the caller's cart */
   create: () => invoke<{ url: string; invoiceId: number; amount: number }>("create-payment", {}),
-  /** `confirm-payment`: verifies the payment with MyFatoorah, then turns the cart into an order */
-  confirm: (paymentId: string) =>
-    invoke<{ ok: boolean; already?: boolean; total?: number; invoiceId?: number; status?: string; paid?: boolean; error?: string }>(
-      "confirm-payment",
-      { paymentId },
-    ),
+  /** `check-payment`: re-reads the payment from MyFatoorah, updates the order and, if paid, fulfils it */
+  check: (paymentId: string) =>
+    invoke<{ ok: boolean; status: OrderStatus; fulfilled: boolean; note: string | null; invoiceId: number }>("check-payment", { paymentId }),
+};
+
+export type OrderStatus = "pending" | "success" | "cancelled" | "rejected";
+
+export type Order = {
+  id: string;
+  invoice_id: number | null;
+  items: { equipment_id: string; name: string; quantity: number; unit_price: number }[];
+  amount: number;
+  status: OrderStatus;
+  fulfilled: boolean;
+  note: string | null;
+  created_at: string;
+};
+
+export const OrdersAPI = {
+  async list(): Promise<Order[]> {
+    const { data, error } = await sb
+      .from("orders")
+      .select("id, invoice_id, items, amount, status, fulfilled, note, created_at")
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    return data as Order[];
+  },
 };
 
 export const CatalogAPI = {
