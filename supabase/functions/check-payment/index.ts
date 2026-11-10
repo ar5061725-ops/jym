@@ -46,7 +46,7 @@ Deno.serve(async (req: Request) => {
   if (!res.ok || !result?.IsSuccess || !data?.InvoiceId) {
     console.error("GetPaymentStatus failed", res.status, JSON.stringify(result)?.slice(0, 500));
     // Non-2xx makes MyFatoorah retry the webhook later
-    return json({ error: "تعذّر التحقق من الدفع الآن" }, 502);
+    return json({ error: `تعذّر التحقق من الدفع الآن [${new URL(BASE_URL).host} ${res.status}]` }, 502);
   }
 
   const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
