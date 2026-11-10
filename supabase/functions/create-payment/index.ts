@@ -100,7 +100,8 @@ Deno.serve(async (req: Request) => {
     console.error("SendPayment failed", res.status, JSON.stringify(result)?.slice(0, 500));
     await admin.from("orders").delete().eq("id", order.id);
     const detail = result?.ValidationErrors?.map((e: { Error: string }) => e.Error).join("، ") || result?.Message;
-    return json({ error: `تعذّر إنشاء رابط الدفع${detail ? `: ${detail}` : ""}` }, 502);
+    // The host is shown to help debugging (test vs live); never the key
+    return json({ error: `تعذّر إنشاء رابط الدفع${detail ? `: ${detail}` : ""} [${new URL(BASE_URL).host}]` }, 502);
   }
 
   await admin.from("orders").update({ invoice_id: invoiceId, updated_at: new Date().toISOString() }).eq("id", order.id);
